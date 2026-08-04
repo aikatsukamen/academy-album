@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>アイカツアカデミー！ デジタルアルバム ビューア</title>
+<title>アイカツアカデミー！ デジタルアルバム</title>
 <style>
 :root{
   --pink:#ec4899; --pink-d:#d1266f; --pink-l:#ffd9ee;
@@ -27,8 +27,8 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.35;z
 /* header */
 header{padding:20px 0 8px;text-align:center}
 .eyebrow{font-size:11px;letter-spacing:.24em;color:var(--pink-d);opacity:.85}
-h1{font-size:25px;color:var(--pink-d);text-shadow:0 2px 0 #fff,0 0 12px #fff9;
-  display:flex;gap:10px;justify-content:center;align-items:center}
+h1{font-size:24px;color:var(--pink-d);text-shadow:0 2px 0 #fff,0 0 12px #fff9;
+  display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap}
 .counter{margin:11px auto 0;max-width:520px;background:#ffffffcc;border:2px solid #fff;border-radius:999px;
   padding:7px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 14px #b98ec733}
 .bar{flex:1;height:12px;border-radius:999px;background:#f0e2f7;overflow:hidden;box-shadow:inset 0 1px 3px #0002}
@@ -176,6 +176,7 @@ mark{background:linear-gradient(transparent 58%,#ffe071 58%);color:#8a4d00;borde
   box-shadow:0 20px 60px #00000040;text-align:center}
 .setup h2{font-size:19px;color:var(--pink-d);margin-bottom:12px}
 .setup p{font-size:13px;line-height:2;color:#6b4a7a;font-weight:600}
+.setup .ex{font-size:12px;opacity:.8}
 .setup code{background:#faf0fc;border-radius:6px;padding:1px 7px;font-size:12px;color:var(--pink-d)}
 .bigbtn{margin-top:18px;border:0;border-radius:999px;font:inherit;font-size:16px;padding:14px 34px;cursor:pointer;
   background:linear-gradient(#ff8ec4,var(--pink));color:#fff;box-shadow:0 6px 18px #ec489966}
@@ -192,8 +193,9 @@ footer{margin-top:34px;text-align:center;font-size:10.5px;color:#7a5a8a;opacity:
     <h2>★ 所持デミカを読み込んでください ★</h2>
     <p>
       ダウンロード済みの全デミカが入ったフォルダを選んでください。<br>
-      各ファイル名はダウンロード時から変えず、カードIDの <code>*.png</code>、<code>*.mp3</code> としてください。<br>
-      ファイルのアップロードというダイアログが出ますが、実際はブラウザの中だけで扱われ、どこにも送信されません。
+      各ファイル名はカードIDの <code>png</code>、<code>mp3</code> としてください。<br>
+      <span class="ex">(例：P-0-R.png、P-1.png、P-0-R.mp3、P-1.mp3、…)</span><br>
+      フォルダ選択のダイアログで「アップロード」する旨が表示されますが、各ファイルはブラウザの中だけで扱われ、どこにも送信されないのでご安心ください。
     </p>
     <label>
       <span class="bigbtn" style="display:inline-block">📁 フォルダを選択</span>
@@ -209,7 +211,7 @@ footer{margin-top:34px;text-align:center;font-size:10.5px;color:#7a5a8a;opacity:
 <header>
   <h1>
     <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 1.7l2.7 6.1 6.6.6-5 4.4 1.5 6.5L12 15.9 6.2 19.3l1.5-6.5-5-4.4 6.6-.6z" fill="#f5c542" stroke="#e0a51f" stroke-width="1.2" stroke-linejoin="round"/></svg>
-    デジタルアルバム ビューア
+    アイカツアカデミー！ デジタルアルバム
     <svg width="22" height="22" viewBox="0 0 24 24"><path d="M12 20.5S3.5 14.8 3.5 9.2A4.7 4.7 0 0112 6.4a4.7 4.7 0 018.5 2.8c0 5.6-8.5 11.3-8.5 11.3z" fill="#ff8ec4" stroke="#e0559a" stroke-width="1.2" stroke-linejoin="round"/></svg>
   </h1>
   <div class="counter">
@@ -592,13 +594,17 @@ function assign(name,url,ext,wide){
   return true;
 }
 async function loadFolder(files){
-  const loose={}, zips=[]; let cardsFile=null;
+  const loose={}, zips=[]; let cardsFile=null, dup=0;
   for(const f of files){
     const n=f.name;
     if(/^cards\.json$/i.test(n)){ cardsFile=f; continue; }
     if(/\.zip$/i.test(n)){ zips.push(f); continue; }
     const m=n.match(/^(.+)\.(png|jpe?g|webp|mp3|m4a|ogg|wav)$/i);
-    if(m) loose[m[1]+'.'+m[2].toLowerCase()]=f;
+    if(m){
+      const k=m[1]+'.'+m[2].toLowerCase();
+      if(!loose[k]) loose[k]=f;
+      else { dup++; if(f.size>loose[k].size) loose[k]=f; }   // 同名が複数階層にあれば大きい方を採用
+    }
   }
   CARDS.forEach(c=>{ c.own=0; c.voice=''; c.img=null; c.aud=null; c.isNew=false; c.wide=false; });
   let nImg=0,nAud=0,unknown=0,zipErr=0;
@@ -643,7 +649,9 @@ async function loadFolder(files){
             if(!m) continue;
             const nm=m[1], ext=m[2].toLowerCase();
             if(!byNo[nm]) continue;
-            if(loose[nm+'.'+ext]) continue;            // 解凍済みが既にあれば優先
+            const c0=byNo[nm];
+            if(loose[nm+'.'+ext]) continue;                 // 解凍済みが既にあれば優先
+            if(isAud(ext)?c0.aud:c0.img){ dup++; continue; } // 別ZIPで割り当て済みならスキップ
             const data=await zipRead(buf,ent);
             const url=URL.createObjectURL(new Blob([data],{type:MIME[ext]||''}));
             const wide=isAud(ext)?null:pngWide(new Uint8Array(data,0,Math.min(32,data.byteLength)));
@@ -659,7 +667,8 @@ async function loadFolder(files){
   dstate.innerHTML = `読込済み： 画像 <b>${nImg}</b> ／ 音声 <b>${nAud}</b> ／ 所持 <b>${ownN}</b> 種`
     + (zips.length?` <span style="opacity:.75">（ZIP ${zips.length}件${zipErr?`／失敗 ${zipErr}`:''}）</span>`:'')
     + (cardsFile||CARDS.some(c=>c.voice)?'':' <span style="opacity:.75">（cards.json なし → セリフ表示・セリフ検索は無効）</span>')
-    + (unknown?` <span style="opacity:.75">（マスタ未収録 ${unknown} 件）</span>`:'');
+    + (unknown?` <span style="opacity:.75">（マスタ未収録 ${unknown} 件）</span>`:'')
+    + (dup?` <span style="opacity:.75">（同名の重複 ${dup} 件はスキップ）</span>`:'');
   databar.classList.add('ok');
   prog.textContent='';
   setup.style.display='none';
