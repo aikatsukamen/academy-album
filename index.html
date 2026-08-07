@@ -113,6 +113,11 @@ select:focus,input:focus{border-color:var(--pink)}
   background:#ffffffdd;border:3px solid #fff;border-radius:16px;padding:10px 14px 10px 10px;
   box-shadow:0 4px 12px #8a5a9a2e;cursor:pointer;border-left:6px solid var(--pink);font:inherit}
 .row:hover{background:#fff}
+.row[disabled]{cursor:default;border-left-color:#c3b0d0;background:#ffffff99}
+.row[disabled]:hover{background:#ffffff99}
+.row[disabled] .thumb img{filter:grayscale(.85) brightness(.68)}
+.row[disabled] .no,.row[disabled] .txt{opacity:.72}
+.tag.lock{background:#ece3f3;color:#8a7a96}
 .row .thumb{border-radius:8px;overflow:hidden;aspect-ratio:590/860;background:#f3e9f8;border:2px solid #fff;
   box-shadow:0 2px 6px #0002;position:relative}
 .row .thumb img{width:100%;height:100%;object-fit:cover;display:block}
@@ -284,7 +289,7 @@ footer{margin-top:34px;text-align:center;font-size:10.5px;color:#7a5a8a;opacity:
 "use strict";
 const DB = JSON.parse(document.getElementById('MASTER').textContent);
 const M = DB.masters;
-const CARDS = DB.cards.map(c=>Object.assign({own:0,voice:'',img:null,aud:null},c));
+const CARDS = DB.cards.map(c=>Object.assign({own:0,voice:'',img:null,aud:null,thumb2:null,wide:false},c));
 const byNo = Object.fromEntries(CARDS.map(c=>[c.card_no,c]));
 const cvName = Object.fromEntries(M.cv.map(c=>[c.id,c.name]));
 const chName = Object.fromEntries(M.characters.map(c=>[c.id,c.name]));
@@ -324,8 +329,8 @@ function pass(c){
   if(S.cv && !c.cv.includes(+S.cv)) return false;
   if(S.kind && c.kind_id!==+S.kind) return false;
   if(S.text){
-    if(!c.own) return false;
     const t=c.voice||'';
+    if(!t) return false;
     for(const w of S.text.trim().split(/[\s　]+/)) if(w && !t.includes(w)) return false;
   }
   return true;
@@ -341,8 +346,8 @@ let view=[], shown=0; const PAGE=60;
 const esc=s=>(s||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 function fitImg(img){ if(img.naturalWidth>img.naturalHeight) img.parentNode.classList.add('wide');
                       else img.parentNode.classList.remove('wide'); }
-const gridSrc=c=>c.img||c.thumbnail;
-const fullSrc=c=>c.img||c.thumbnail;
+const gridSrc=c=>c.img||c.thumb2||c.thumbnail;
+const fullSrc=c=>c.img||c.thumb2||c.thumbnail;
 function groupLabel(c){
   if(S.group==='cat') return c.category_name+(c.series_name?' ／ '+c.series_name:'');
   if(S.group==='cv') return c.cv.map(i=>cvName[i]).join('・')||'—';
@@ -387,12 +392,12 @@ function hl(text){
   return h;
 }
 function rowHTML(c,i){
-  return `<button class="row" data-i="${i}">
+  return `<button class="row" data-i="${i}" ${c.own?'':'disabled'}>
     <div class="thumb ${c.wide?'wide':''}"><img loading="lazy" src="${esc(gridSrc(c))}" alt="" onload="fitImg(this)"></div>
     <div><div class="meta"><span class="no">${esc(c.card_no)}</span>
       <span class="tag">${esc([c.category_name,c.series_name].filter(Boolean).join(' / '))}</span>
       ${c.cv.map(id=>`<span class="tag cv">${esc(cvName[id])}</span>`).join('')}
-      ${c.own>1?`<span class="tag gold">×${c.own}</span>`:''}</div>
+      ${c.own>1?`<span class="tag gold">×${c.own}</span>`:''}${c.own?'':`<span class="tag lock">未所持</span>`}</div>
       <div class="txt">${hl(c.voice)}</div></div></button>`;
 }
 new IntersectionObserver(es=>{ if(es[0].isIntersecting&&shown<view.length) render(false); },{rootMargin:'400px'}).observe(sent);
@@ -500,13 +505,13 @@ addEventListener('keydown',e=>{
   else if(e.key==='a'||e.key==='A') toggleAuto();
 });
 grid.addEventListener('click',e=>{const b=e.target.closest('.cardbtn'); if(b&&!b.disabled) openModal(+b.dataset.i);});
-list.addEventListener('click',e=>{const b=e.target.closest('.row'); if(b) openModal(+b.dataset.i);});
+list.addEventListener('click',e=>{const b=e.target.closest('.row'); if(b&&!b.disabled) openModal(+b.dataset.i);});
 
 /* ============ controls ============ */
 segOwn.onclick=e=>{const b=e.target.closest('button');if(!b)return;
   [...segOwn.children].forEach(x=>x.classList.toggle('on',x===b));S.own=b.dataset.v;render(true);};
 segView.onclick=e=>{const b=e.target.closest('button');if(!b)return;
-  setView(b.dataset.v); if(S.view==='list') setOwn('own'); render(true);};
+  setView(b.dataset.v); render(true);};
 function setView(v){S.view=v;[...segView.children].forEach(x=>x.classList.toggle('on',x.dataset.v===v));}
 function setOwn(v){S.own=v;[...segOwn.children].forEach(x=>x.classList.toggle('on',x.dataset.v===v));}
 sort.onchange=()=>{S.sort=sort.value;render(true)};
@@ -520,7 +525,7 @@ fclose.onclick=()=>{fpanel.classList.remove('open');fbtn.classList.remove('on')}
 const binds=[[fCat,'cat'],[fSeries,'series'],[fChar,'char'],[fCv,'cv'],[fKind,'kind']];
 binds.forEach(([el,k])=>el.onchange=()=>{S[k]=el.value;if(k==='cat')syncSeries();render(true);fbadge();});
 let deb; fText.oninput=()=>{clearTimeout(deb);deb=setTimeout(()=>{
-  S.text=fText.value; if(S.text){setView('list');setOwn('own');} render(true);fbadge();},250)};
+  S.text=fText.value; if(S.text) setView('list'); render(true);fbadge();},250)};
 fclear.onclick=()=>{['cat','series','char','cv','kind','text'].forEach(k=>S[k]='');
   binds.forEach(([el])=>el.value='');fText.value='';syncSeries();setView('grid');setOwn('all');render(true);fbadge();};
 function fbadge(){const n=['cat','series','char','cv','kind','text'].filter(k=>S[k]!=='').length;
@@ -588,7 +593,8 @@ const isAud=e=>['mp3','m4a','ogg','wav'].includes(e);
 /* ============ folder load ============ */
 function assign(name,url,ext,wide){
   const c=byNo[name]; if(!c) return false;
-  if(isAud(ext)) c.aud=url; else { c.img=url; if(wide!==null&&wide!==undefined) c.wide=wide; if(!c.own) c.own=1; }
+  if(isAud(ext)) c.aud=url; else { c.img=url; if(wide!==null&&wide!==undefined) c.wide=wide; }
+  if(!c.own) c.own=1;   // ファイルを持っている＝所持
   return true;
 }
 async function loadFolder(files){
@@ -604,7 +610,7 @@ async function loadFolder(files){
       else { dup++; if(f.size>loose[k].size) loose[k]=f; }   // 同名が複数階層にあれば大きい方を採用
     }
   }
-  CARDS.forEach(c=>{ c.own=0; c.voice=''; c.img=null; c.aud=null; c.isNew=false; c.wide=false; });
+  CARDS.forEach(c=>{ c.own=0; c.voice=''; c.img=null; c.aud=null; c.isNew=false; c.wide=false; c.thumb2=null; });
   let nImg=0,nAud=0,unknown=0,zipErr=0;
 
   prog.textContent='cards.json を読み込み中…';
@@ -613,7 +619,11 @@ async function loadFolder(files){
       for(const o of JSON.parse(await cardsFile.text())){
         const c=byNo[o.card_no];
         if(!c){ unknown++; continue; }
-        c.own=o.card_count||1; c.voice=o.voice_info_text||''; c.isNew=(o.status==='new');
+        // 所持情報が書かれている場合だけ採用。無ければファイルの有無で判定する
+        if('has_own' in o)        c.own = o.has_own ? (o.card_count||1) : 0;
+        else if('card_count' in o) c.own = o.card_count||0;
+        c.voice=o.voice_info_text||''; c.isNew=(o.status==='new');
+        if(o.card_thumbnail) c.thumb2=o.card_thumbnail;
       }
     }catch(e){ prog.textContent='cards.json の読み込みに失敗しました'; }
   }
@@ -639,7 +649,11 @@ async function loadFolder(files){
             const base=ent.name.split('/').pop();
             if(/^cards\.json$/i.test(base) && !cardsFile){
               try{ for(const o of JSON.parse(new TextDecoder().decode(await zipRead(buf,ent)))){
-                     const c=byNo[o.card_no]; if(c){c.own=o.card_count||1;c.voice=o.voice_info_text||'';c.isNew=(o.status==='new');}
+                     const c=byNo[o.card_no]; if(!c) continue;
+                     if('has_own' in o)         c.own=o.has_own?(o.card_count||1):0;
+                     else if('card_count' in o) c.own=o.card_count||0;
+                     c.voice=o.voice_info_text||''; c.isNew=(o.status==='new');
+                     if(o.card_thumbnail) c.thumb2=o.card_thumbnail;
                    } }catch(e){}
               continue;
             }
@@ -661,8 +675,9 @@ async function loadFolder(files){
   }
 
   loaded=true;
-  const ownN=CARDS.filter(c=>c.own).length;
+  const ownN=CARDS.filter(c=>c.own).length, voiceN=CARDS.filter(c=>c.voice).length;
   dstate.innerHTML = `読込済み： 画像 <b>${nImg}</b> ／ 音声 <b>${nAud}</b> ／ 所持 <b>${ownN}</b> 種`
+    + (voiceN?` ／ セリフ <b>${voiceN}</b> 件`:'')
     + (zips.length?` <span style="opacity:.75">（ZIP ${zips.length}件${zipErr?`／失敗 ${zipErr}`:''}）</span>`:'')
     + (cardsFile||CARDS.some(c=>c.voice)?'':' <span style="opacity:.75">（cards.json なし → セリフ表示・セリフ検索は無効）</span>')
     + (unknown?` <span style="opacity:.75">（マスタ未収録 ${unknown} 件）</span>`:'')
